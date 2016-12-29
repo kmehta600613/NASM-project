@@ -1,0 +1,212 @@
+%include "asm_io.inc"
+
+SECTION .data
+
+err1: db "incorrect number of command line arguments", 10, 0
+err2: db "incorrect command line argument", 10, 0
+err3: db "incorrect string length", 10, 0
+msg: db "sorted suffixes:", 10, 0
+msg1: db "Press enter to exit:", 10, 0
+
+SECTION .bss
+
+X resb 31
+N resd 1
+i resd 1
+j resd 1
+a resd 1
+b resd 1
+Y resb 31
+k resd 1
+t resd 1
+temp resd 1
+
+SECTION .text
+global asm_main
+
+sufcmp:
+  enter 0,0
+  pusha
+  mov ecx, dword[ebp+8]
+  mov edx, dword[ebp+12]
+  mov edi, dword[ebp+16]
+  
+  RETURN_VALUE:
+    cmp byte[ecx+edx], 0
+    je RETMINUS
+    cmp byte[ecx+edi], 0
+    je RETPLUS
+    mov al, byte[ecx+edx]
+    cmp al, byte[ecx+edi]
+    jl RETMINUS
+    cmp al, byte[ecx+edi]
+    jg RETPLUS
+    inc edx
+    inc edi
+    jmp RETURN_VALUE
+
+  RETPLUS:
+    popa
+    mov eax, dword 1
+    jmp END
+
+  RETMINUS:
+    popa
+    mov eax, dword -1
+    jmp END
+
+  END:
+    leave
+    ret
+
+asm_main:
+  enter 0, 0
+  pusha
+
+  mov eax, dword [ebp+8]
+  cmp eax, dword 2
+  jne ERR1
+  mov ebx, dword [ebp+12]
+  mov eax, dword [ebx+4]
+  mov ecx, 0
+  LOOP1:
+    cmp byte[eax+ecx], 0
+    je incorrect_length_check
+    try1: cmp byte[eax+ecx], '0'
+      jne try2
+      jmp try_end
+    try2: cmp byte[eax+ecx], '1'
+      jne try3
+      jmp try_end
+    try3: cmp byte[eax+ecx], '2'
+      jne ERR2
+      jmp try_end
+    try_end:
+      inc ecx
+      jmp LOOP1 
+    incorrect_length_check:
+      cmp ecx, dword 30
+      jg ERR3
+      mov ecx, 0
+
+  Array_X:
+    mov edx, 0
+    LOOP2:
+      mov bl, byte[eax+edx]
+      cmp bl, 0
+      je done_loop_1
+      mov byte[X+edx], bl
+      inc edx
+      jmp LOOP2
+    done_loop_1:
+      mov eax, X
+      call print_string
+      call print_nl
+      mov [N], edx
+
+  Array_Y:
+    mov ecx, dword 0
+    LOOP3:
+      cmp ecx, [N]
+      je exit
+      mov [Y+(ecx*4)], ecx
+      inc ecx
+      jmp LOOP3
+    exit:
+      mov edx, [N]
+      mov [i], edx      
+      add [i], dword 1 
+
+  bubble_sort:
+    sub [i], dword 1
+    cmp [i], dword 0
+    je print_suffixes
+    mov [j], dword 0
+    LOOP4:
+      add [j], dword 1
+      mov ecx, [i]
+      cmp [j], ecx
+      je bubble_sort
+      mov ebx, [j]
+      mov edx, [Y+(ebx*4)]
+      mov [a], edx    
+      mov ebx, [j]
+      sub ebx, dword 1
+      mov ecx, [Y+(ebx*4)]
+      mov [b], ecx
+      
+      push edx
+      push ecx
+      push X
+      call sufcmp
+      add esp, 12
+      mov [k], eax
+      mov eax, [k]
+      cmp [k], dword 0
+      jg LOOP5
+      jmp LOOP4
+ 
+    LOOP5:
+      mov ecx, [b]
+      mov [t], ecx
+      mov edx, [j]
+      sub edx, dword 1
+      mov ebx, [a]
+      mov [Y+(edx*4)], ebx
+      mov edx, [j]
+      mov ecx, [t]
+      mov [Y+(edx*4)], ecx
+      jmp LOOP4
+
+  print_suffixes:
+    mov eax, msg
+    call print_string
+    mov ebx, dword 0
+    sub ebx, dword 1
+    output:
+      inc ebx
+      cmp ebx, [N]
+      je output_end
+      mov ecx, [Y+ecx*4]
+      mov edi, ecx
+      dec edi
+
+      LOOP7:
+        inc edi
+        cmp edi, [N]
+        je back_to_output
+        mov eax, [X+edi]
+        call print_char
+        jmp LOOP7
+
+      back_to_output:
+        call print_nl
+        jmp output
+ 
+   output_end:
+     mov eax, msg1
+     call print_string
+     call read_char
+     cmp al, `\n`
+     je asm_main_end
+     jmp output_end
+ 
+  ERR1:
+    mov eax, err1
+    call print_string
+    jmp asm_main_end
+
+  ERR2:
+    mov eax, err2
+    call print_string
+    jmp asm_main_end
+
+  ERR3:
+    mov eax, err3
+    call print_string
+    jmp asm_main_end
+
+  asm_main_end:
+    popa
+    leave
+    ret
